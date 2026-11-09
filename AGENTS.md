@@ -28,3 +28,5 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+Adapt the imported standalone apparel experience as the TanStack home route to preserve its single-page workflow while fitting the target application structure.
