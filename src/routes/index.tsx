@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import React, { useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
   ShieldCheck,
   Leaf,
@@ -36,6 +36,13 @@ import {
   SlidersHorizontal,
   Box
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  clampArtworkTransform,
+  moveArtworkTransform,
+  resizeArtworkTransform,
+  type ArtworkTransform,
+} from "@/lib/apparel-customizer";
 
 type ProductColor = { name: string; hex: string; bgClass: string };
 type Product = {
@@ -56,6 +63,7 @@ type Product = {
   silhouetteType: string;
 };
 type SizeCounts = { XS: number; S: number; M: number; L: number; XL: number; "2XL": number; "3XL": number };
+type ApparelSide = "front" | "back";
 type PipelineQuote = {
   id: string;
   company: string;
@@ -76,6 +84,7 @@ type PipelineQuote = {
       gstAmount: number; freight: number; grandTotal: number;
       effectivePerPiece: number; totalSavingsVsBase: number;
     };
+    artwork: { front: ArtworkTransform; back: ArtworkTransform };
     notes: string;
   };
 };
@@ -333,6 +342,20 @@ export default function App() {
   const [customLogoText, setCustomLogoText] = useState("WORTHSTYLE CLIENT");
   const [customLogoFile, setCustomLogoFile] = useState<File | null>(null);
   const [uploadedLogoUrl, setUploadedLogoUrl] = useState<string | null>(null);
+  const [activeSide, setActiveSide] = useState<ApparelSide>("front");
+  const [artworkBySide, setArtworkBySide] = useState<Record<ApparelSide, ArtworkTransform>>({
+    front: { x: 43, y: 38, width: 24, height: 15 },
+    back: { x: 50, y: 38, width: 36, height: 24 },
+  });
+  const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
+  const previewPanelRef = useRef<HTMLDivElement | null>(null);
+  const garmentCanvasRef = useRef<HTMLDivElement | null>(null);
+  const artworkDragRef = useRef<{
+    pointerId: number;
+    side: ApparelSide;
+    lastX: number;
+    lastY: number;
+  } | null>(null);
 
   // Add-ons
   const [addonNeckLabel, setAddonNeckLabel] = useState(true); // +18/pc
@@ -408,6 +431,99 @@ export default function App() {
   ]);
   const [pipelineFilter, setPipelineFilter] = useState("all");
   const [searchFilter, setSearchFilter] = useState("");
+
+  const activeArtwork = artworkBySide[activeSide];
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      setIsPreviewFullscreen(document.fullscreenElement === previewPanelRef.current);
+    };
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreenState);
+  }, []);
+
+  const updateArtwork = (side: ApparelSide, transform: ArtworkTransform) => {
+    setArtworkBySide((current) => ({
+      ...current,
+      [side]: clampArtworkTransform(transform),
+    }));
+  };
+
+  const togglePreviewFullscreen = async () => {
+    const panel = previewPanelRef.current;
+    if (!panel) return;
+
+    try {
+      if (document.fullscreenElement === panel) {
+        await document.exitFullscreen();
+      } else if (panel.requestFullscreen) {
+        await panel.requestFullscreen();
+      }
+    } catch {
+      setIsPreviewFullscreen(false);
+    }
+  };
+
+  const handleArtworkPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 && event.pointerType !== "touch") return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    artworkDragRef.current = {
+      pointerId: event.pointerId,
+      side: activeSide,
+      lastX: event.clientX,
+      lastY: event.clientY,
+    };
+  };
+
+  const handleArtworkPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = artworkDragRef.current;
+    const bounds = garmentCanvasRef.current?.getBoundingClientRect();
+    if (!drag || drag.pointerId !== event.pointerId || !bounds?.width || !bounds.height) return;
+
+    const deltaX = ((event.clientX - drag.lastX) / bounds.width) * 100;
+    const deltaY = ((event.clientY - drag.lastY) / bounds.height) * 100;
+    artworkDragRef.current = { ...drag, lastX: event.clientX, lastY: event.clientY };
+    setArtworkBySide((current) => ({
+      ...current,
+      [drag.side]: moveArtworkTransform(current[drag.side], deltaX, deltaY),
+    }));
+  };
+
+  const handleArtworkPointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (artworkDragRef.current?.pointerId === event.pointerId) {
+      artworkDragRef.current = null;
+    }
+  };
+
+  const handleArtworkKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const steps: Record<string, [number, number]> = {
+      ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+    };
+    const step = steps[event.key];
+    if (!step) return;
+    event.preventDefault();
+    const multiplier = event.shiftKey ? 5 : 1;
+    updateArtwork(activeSide, moveArtworkTransform(activeArtwork, step[0] * multiplier, step[1] * multiplier));
+  };
+
+  const applyLogoPlacement = (placement: string) => {
+    setLogoPlacement(placement);
+    const nextSide = placement === "full-back" ? "back" : activeSide;
+    setActiveSide(nextSide);
+    const presets: Record<string, ArtworkTransform> = {
+      "left-chest": { x: 42, y: 37, width: 22, height: 15 },
+      "center-chest": { x: 50, y: 39, width: 31, height: 20 },
+      "full-back": { x: 50, y: 38, width: 42, height: 28 },
+      sleeve: { x: 30, y: 40, width: 18, height: 13 },
+    };
+    const preset = presets[placement];
+    if (preset) updateArtwork(nextSide, preset);
+  };
+
+  const handleGarmentColorChange = (hex: string) => {
+    setGarmentColor({ ...garmentColor, name: "Custom shade", hex });
+  };
 
   // Sync color options when selected product changes
   const handleSelectProduct = (prod: Product) => {
@@ -934,7 +1050,10 @@ export default function App() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               {/* Left Column: Visual Mockup Canvas & Placement Toggles */}
               <div className="lg:col-span-5 space-y-4">
-                <div className="bg-stone-200/60 rounded-2xl p-6 border border-stone-300/80 shadow-inner flex flex-col items-center justify-center relative min-h-[460px]">
+                <div
+                  ref={previewPanelRef}
+                  className={`bg-stone-200/60 rounded-2xl p-6 border border-stone-300/80 shadow-inner flex flex-col items-center justify-center relative min-h-[460px] ${isPreviewFullscreen ? "h-screen w-screen min-h-screen rounded-none p-8" : ""}`}
+                >
                   {/* Watermark / Badge */}
                   <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-xs text-[10px] font-bold px-2 py-1 rounded shadow-xs text-stone-600 uppercase tracking-wider flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -945,26 +1064,65 @@ export default function App() {
                     {garmentColor.name}
                   </div>
 
+                  <div className="absolute top-12 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-lg border border-stone-200 bg-background/95 p-1 shadow-sm" role="group" aria-label="Garment side">
+                    {(["front", "back"] as const).map((side) => (
+                      <Button
+                        key={side}
+                        type="button"
+                        size="sm"
+                        variant={activeSide === side ? "default" : "ghost"}
+                        aria-pressed={activeSide === side}
+                        onClick={() => setActiveSide(side)}
+                        className="capitalize"
+                      >
+                        {side}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label={isPreviewFullscreen ? "Exit full screen preview" : "Open full screen preview"}
+                    title={isPreviewFullscreen ? "Exit full screen" : "Full screen"}
+                    onClick={togglePreviewFullscreen}
+                    className="absolute right-4 top-12 z-10"
+                  >
+                    {isPreviewFullscreen ? <X /> : <Eye />}
+                  </Button>
+
                   {/* Visual Garment Mockup with Logo Overlay Engine */}
-                  <div className="relative w-72 h-84 flex items-center justify-center transition-all duration-300">
+                  <div
+                    ref={garmentCanvasRef}
+                    className={`relative mt-12 w-full max-w-80 aspect-[6/7] flex items-center justify-center transition-all duration-300 ${isPreviewFullscreen ? "max-h-[72vh] max-w-[min(70vw,70vh)]" : ""}`}
+                  >
                     <GarmentSilhouette
                       type={selectedProduct.silhouetteType}
                       colorHex={garmentColor.hex}
+                      side={activeSide}
                       className="w-full h-full drop-shadow-2xl transition-colors duration-300"
                     />
 
                     {/* Logo Placement Container */}
                     {brandingTechnique !== "blank" && (
                       <div
-                        className={`absolute flex items-center justify-center transition-all duration-300 ${
-                          logoPlacement === "left-chest"
-                            ? "top-[32%] left-[34%] w-12 h-12"
-                            : logoPlacement === "center-chest"
-                            ? "top-[36%] left-[40%] w-24 h-16"
-                            : logoPlacement === "full-back"
-                            ? "top-[28%] left-[32%] w-32 h-28 opacity-90"
-                            : "top-[38%] left-[24%] w-10 h-10" // sleeve
-                        }`}
+                        role="img"
+                        aria-label={`Draggable client artwork on garment ${activeSide}; use arrow keys to reposition`}
+                        tabIndex={0}
+                        onKeyDown={handleArtworkKeyDown}
+                        onPointerDown={handleArtworkPointerDown}
+                        onPointerMove={handleArtworkPointerMove}
+                        onPointerUp={handleArtworkPointerEnd}
+                        onPointerCancel={handleArtworkPointerEnd}
+                        className={`absolute flex items-center justify-center cursor-move touch-none select-none rounded-sm border border-dashed border-primary/70 transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${brandingTechnique === "puff" ? "drop-shadow-md" : ""}`}
+                        style={{
+                          left: `${activeArtwork.x}%`,
+                          top: `${activeArtwork.y}%`,
+                          width: `${activeArtwork.width}%`,
+                          height: `${activeArtwork.height}%`,
+                          transform: "translate(-50%, -50%)",
+                        }}
                       >
                         {uploadedLogoUrl ? (
                           <img
@@ -976,24 +1134,9 @@ export default function App() {
                           />
                         ) : (
                           <div
-                            className={`p-1.5 rounded text-center border font-bold uppercase transition-all tracking-wider ${
-                              garmentColor.name === "Raw Undyed Sand"
-                                ? "bg-stone-900/90 text-white border-stone-800"
-                                : "bg-white/90 text-stone-950 border-white/80"
-                            } ${
-                              brandingTechnique === "puff"
-                                ? "shadow-[0_4px_10px_rgba(0,0,0,0.5)] scale-105"
-                                : brandingTechnique === "embroidery"
-                                ? "border-dashed"
-                                : ""
-                            }`}
+                            className="max-w-full overflow-hidden rounded px-1.5 py-1 text-center text-foreground font-bold uppercase tracking-wider bg-background/90 border border-border"
                             style={{
-                              fontSize:
-                                logoPlacement === "center-chest"
-                                  ? "10px"
-                                  : logoPlacement === "full-back"
-                                  ? "13px"
-                                  : "7px"
+                              fontSize: `${Math.max(7, Math.min(20, activeArtwork.width * 0.14))}px`,
                             }}
                           >
                             {customLogoText}
@@ -1019,9 +1162,46 @@ export default function App() {
                               : "hover:scale-105 opacity-80"
                           }`}
                           title={c.name}
+                          aria-label={`Choose ${c.name}`}
+                          aria-pressed={garmentColor.hex === c.hex}
                         />
                       ))}
                     </div>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-stone-600">
+                      <span>Custom</span>
+                      <input
+                        type="color"
+                        aria-label="Choose a custom garment color"
+                        value={garmentColor.hex}
+                        onChange={(event) => handleGarmentColorChange(event.target.value)}
+                        className="h-9 w-10 cursor-pointer rounded-md border border-stone-300 bg-background p-1"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-3 grid w-full max-w-80 grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2 rounded-lg border border-stone-200 bg-background/90 p-3 text-xs">
+                    <label htmlFor="artwork-width" className="font-semibold text-foreground">Width</label>
+                    <input
+                      id="artwork-width"
+                      type="range"
+                      min="6"
+                      max="80"
+                      value={activeArtwork.width}
+                      onChange={(event) => updateArtwork(activeSide, resizeArtworkTransform(activeArtwork, Number(event.target.value), activeArtwork.height))}
+                      className="w-full accent-primary"
+                    />
+                    <span className="w-10 text-right tabular-nums">{Math.round(activeArtwork.width)}%</span>
+                    <label htmlFor="artwork-height" className="font-semibold text-foreground">Height</label>
+                    <input
+                      id="artwork-height"
+                      type="range"
+                      min="6"
+                      max="80"
+                      value={activeArtwork.height}
+                      onChange={(event) => updateArtwork(activeSide, resizeArtworkTransform(activeArtwork, activeArtwork.width, Number(event.target.value)))}
+                      className="w-full accent-primary"
+                    />
+                    <span className="w-10 text-right tabular-nums">{Math.round(activeArtwork.height)}%</span>
                   </div>
                 </div>
 
