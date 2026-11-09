@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import React, { useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
   ShieldCheck,
   Leaf,
@@ -36,6 +36,13 @@ import {
   SlidersHorizontal,
   Box
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  clampArtworkTransform,
+  moveArtworkTransform,
+  resizeArtworkTransform,
+  type ArtworkTransform,
+} from "@/lib/apparel-customizer";
 
 type ProductColor = { name: string; hex: string; bgClass: string };
 type Product = {
@@ -56,6 +63,7 @@ type Product = {
   silhouetteType: string;
 };
 type SizeCounts = { XS: number; S: number; M: number; L: number; XL: number; "2XL": number; "3XL": number };
+type ApparelSide = "front" | "back";
 type PipelineQuote = {
   id: string;
   company: string;
@@ -76,6 +84,7 @@ type PipelineQuote = {
       gstAmount: number; freight: number; grandTotal: number;
       effectivePerPiece: number; totalSavingsVsBase: number;
     };
+    artwork: { front: ArtworkTransform; back: ArtworkTransform };
     notes: string;
   };
 };
@@ -333,6 +342,20 @@ export default function App() {
   const [customLogoText, setCustomLogoText] = useState("WORTHSTYLE CLIENT");
   const [customLogoFile, setCustomLogoFile] = useState<File | null>(null);
   const [uploadedLogoUrl, setUploadedLogoUrl] = useState<string | null>(null);
+  const [activeSide, setActiveSide] = useState<ApparelSide>("front");
+  const [artworkBySide, setArtworkBySide] = useState<Record<ApparelSide, ArtworkTransform>>({
+    front: { x: 43, y: 38, width: 24, height: 15 },
+    back: { x: 50, y: 38, width: 36, height: 24 },
+  });
+  const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
+  const previewPanelRef = useRef<HTMLDivElement | null>(null);
+  const garmentCanvasRef = useRef<HTMLDivElement | null>(null);
+  const artworkDragRef = useRef<{
+    pointerId: number;
+    side: ApparelSide;
+    lastX: number;
+    lastY: number;
+  } | null>(null);
 
   // Add-ons
   const [addonNeckLabel, setAddonNeckLabel] = useState(true); // +18/pc
@@ -408,6 +431,99 @@ export default function App() {
   ]);
   const [pipelineFilter, setPipelineFilter] = useState("all");
   const [searchFilter, setSearchFilter] = useState("");
+
+  const activeArtwork = artworkBySide[activeSide];
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      setIsPreviewFullscreen(document.fullscreenElement === previewPanelRef.current);
+    };
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreenState);
+  }, []);
+
+  const updateArtwork = (side: ApparelSide, transform: ArtworkTransform) => {
+    setArtworkBySide((current) => ({
+      ...current,
+      [side]: clampArtworkTransform(transform),
+    }));
+  };
+
+  const togglePreviewFullscreen = async () => {
+    const panel = previewPanelRef.current;
+    if (!panel) return;
+
+    try {
+      if (document.fullscreenElement === panel) {
+        await document.exitFullscreen();
+      } else if (panel.requestFullscreen) {
+        await panel.requestFullscreen();
+      }
+    } catch {
+      setIsPreviewFullscreen(false);
+    }
+  };
+
+  const handleArtworkPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 && event.pointerType !== "touch") return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    artworkDragRef.current = {
+      pointerId: event.pointerId,
+      side: activeSide,
+      lastX: event.clientX,
+      lastY: event.clientY,
+    };
+  };
+
+  const handleArtworkPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = artworkDragRef.current;
+    const bounds = garmentCanvasRef.current?.getBoundingClientRect();
+    if (!drag || drag.pointerId !== event.pointerId || !bounds?.width || !bounds.height) return;
+
+    const deltaX = ((event.clientX - drag.lastX) / bounds.width) * 100;
+    const deltaY = ((event.clientY - drag.lastY) / bounds.height) * 100;
+    artworkDragRef.current = { ...drag, lastX: event.clientX, lastY: event.clientY };
+    setArtworkBySide((current) => ({
+      ...current,
+      [drag.side]: moveArtworkTransform(current[drag.side], deltaX, deltaY),
+    }));
+  };
+
+  const handleArtworkPointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (artworkDragRef.current?.pointerId === event.pointerId) {
+      artworkDragRef.current = null;
+    }
+  };
+
+  const handleArtworkKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const steps: Record<string, [number, number]> = {
+      ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+    };
+    const step = steps[event.key];
+    if (!step) return;
+    event.preventDefault();
+    const multiplier = event.shiftKey ? 5 : 1;
+    updateArtwork(activeSide, moveArtworkTransform(activeArtwork, step[0] * multiplier, step[1] * multiplier));
+  };
+
+  const applyLogoPlacement = (placement: string) => {
+    setLogoPlacement(placement);
+    const nextSide = placement === "full-back" ? "back" : activeSide;
+    setActiveSide(nextSide);
+    const presets: Record<string, ArtworkTransform> = {
+      "left-chest": { x: 42, y: 37, width: 22, height: 15 },
+      "center-chest": { x: 50, y: 39, width: 31, height: 20 },
+      "full-back": { x: 50, y: 38, width: 42, height: 28 },
+      sleeve: { x: 30, y: 40, width: 18, height: 13 },
+    };
+    const preset = presets[placement];
+    if (preset) updateArtwork(nextSide, preset);
+  };
+
+  const handleGarmentColorChange = (hex: string) => {
+    setGarmentColor({ ...garmentColor, name: "Custom shade", hex });
+  };
 
   // Sync color options when selected product changes
   const handleSelectProduct = (prod: Product) => {
