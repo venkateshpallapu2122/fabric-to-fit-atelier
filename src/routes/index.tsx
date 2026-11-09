@@ -1050,7 +1050,10 @@ export default function App() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               {/* Left Column: Visual Mockup Canvas & Placement Toggles */}
               <div className="lg:col-span-5 space-y-4">
-                <div className="bg-stone-200/60 rounded-2xl p-6 border border-stone-300/80 shadow-inner flex flex-col items-center justify-center relative min-h-[460px]">
+                <div
+                  ref={previewPanelRef}
+                  className={`bg-stone-200/60 rounded-2xl p-6 border border-stone-300/80 shadow-inner flex flex-col items-center justify-center relative min-h-[460px] ${isPreviewFullscreen ? "h-screen w-screen min-h-screen rounded-none p-8" : ""}`}
+                >
                   {/* Watermark / Badge */}
                   <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-xs text-[10px] font-bold px-2 py-1 rounded shadow-xs text-stone-600 uppercase tracking-wider flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -1061,26 +1064,65 @@ export default function App() {
                     {garmentColor.name}
                   </div>
 
+                  <div className="absolute top-12 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-lg border border-stone-200 bg-background/95 p-1 shadow-sm" role="group" aria-label="Garment side">
+                    {(["front", "back"] as const).map((side) => (
+                      <Button
+                        key={side}
+                        type="button"
+                        size="sm"
+                        variant={activeSide === side ? "default" : "ghost"}
+                        aria-pressed={activeSide === side}
+                        onClick={() => setActiveSide(side)}
+                        className="capitalize"
+                      >
+                        {side}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label={isPreviewFullscreen ? "Exit full screen preview" : "Open full screen preview"}
+                    title={isPreviewFullscreen ? "Exit full screen" : "Full screen"}
+                    onClick={togglePreviewFullscreen}
+                    className="absolute right-4 top-12 z-10"
+                  >
+                    {isPreviewFullscreen ? <X /> : <Eye />}
+                  </Button>
+
                   {/* Visual Garment Mockup with Logo Overlay Engine */}
-                  <div className="relative w-72 h-84 flex items-center justify-center transition-all duration-300">
+                  <div
+                    ref={garmentCanvasRef}
+                    className={`relative mt-12 w-full max-w-80 aspect-[6/7] flex items-center justify-center transition-all duration-300 ${isPreviewFullscreen ? "max-h-[72vh] max-w-[min(70vw,70vh)]" : ""}`}
+                  >
                     <GarmentSilhouette
                       type={selectedProduct.silhouetteType}
                       colorHex={garmentColor.hex}
+                      side={activeSide}
                       className="w-full h-full drop-shadow-2xl transition-colors duration-300"
                     />
 
                     {/* Logo Placement Container */}
                     {brandingTechnique !== "blank" && (
                       <div
-                        className={`absolute flex items-center justify-center transition-all duration-300 ${
-                          logoPlacement === "left-chest"
-                            ? "top-[32%] left-[34%] w-12 h-12"
-                            : logoPlacement === "center-chest"
-                            ? "top-[36%] left-[40%] w-24 h-16"
-                            : logoPlacement === "full-back"
-                            ? "top-[28%] left-[32%] w-32 h-28 opacity-90"
-                            : "top-[38%] left-[24%] w-10 h-10" // sleeve
-                        }`}
+                        role="img"
+                        aria-label={`Draggable client artwork on garment ${activeSide}; use arrow keys to reposition`}
+                        tabIndex={0}
+                        onKeyDown={handleArtworkKeyDown}
+                        onPointerDown={handleArtworkPointerDown}
+                        onPointerMove={handleArtworkPointerMove}
+                        onPointerUp={handleArtworkPointerEnd}
+                        onPointerCancel={handleArtworkPointerEnd}
+                        className={`absolute flex items-center justify-center cursor-move touch-none select-none rounded-sm border border-dashed border-primary/70 transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${brandingTechnique === "puff" ? "drop-shadow-md" : ""}`}
+                        style={{
+                          left: `${activeArtwork.x}%`,
+                          top: `${activeArtwork.y}%`,
+                          width: `${activeArtwork.width}%`,
+                          height: `${activeArtwork.height}%`,
+                          transform: "translate(-50%, -50%)",
+                        }}
                       >
                         {uploadedLogoUrl ? (
                           <img
@@ -1092,24 +1134,9 @@ export default function App() {
                           />
                         ) : (
                           <div
-                            className={`p-1.5 rounded text-center border font-bold uppercase transition-all tracking-wider ${
-                              garmentColor.name === "Raw Undyed Sand"
-                                ? "bg-stone-900/90 text-white border-stone-800"
-                                : "bg-white/90 text-stone-950 border-white/80"
-                            } ${
-                              brandingTechnique === "puff"
-                                ? "shadow-[0_4px_10px_rgba(0,0,0,0.5)] scale-105"
-                                : brandingTechnique === "embroidery"
-                                ? "border-dashed"
-                                : ""
-                            }`}
+                            className="max-w-full overflow-hidden rounded px-1.5 py-1 text-center text-foreground font-bold uppercase tracking-wider bg-background/90 border border-border"
                             style={{
-                              fontSize:
-                                logoPlacement === "center-chest"
-                                  ? "10px"
-                                  : logoPlacement === "full-back"
-                                  ? "13px"
-                                  : "7px"
+                              fontSize: `${Math.max(7, Math.min(20, activeArtwork.width * 0.14))}px`,
                             }}
                           >
                             {customLogoText}
@@ -1135,9 +1162,46 @@ export default function App() {
                               : "hover:scale-105 opacity-80"
                           }`}
                           title={c.name}
+                          aria-label={`Choose ${c.name}`}
+                          aria-pressed={garmentColor.hex === c.hex}
                         />
                       ))}
                     </div>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-stone-600">
+                      <span>Custom</span>
+                      <input
+                        type="color"
+                        aria-label="Choose a custom garment color"
+                        value={garmentColor.hex}
+                        onChange={(event) => handleGarmentColorChange(event.target.value)}
+                        className="h-9 w-10 cursor-pointer rounded-md border border-stone-300 bg-background p-1"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-3 grid w-full max-w-80 grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2 rounded-lg border border-stone-200 bg-background/90 p-3 text-xs">
+                    <label htmlFor="artwork-width" className="font-semibold text-foreground">Width</label>
+                    <input
+                      id="artwork-width"
+                      type="range"
+                      min="6"
+                      max="80"
+                      value={activeArtwork.width}
+                      onChange={(event) => updateArtwork(activeSide, resizeArtworkTransform(activeArtwork, Number(event.target.value), activeArtwork.height))}
+                      className="w-full accent-primary"
+                    />
+                    <span className="w-10 text-right tabular-nums">{Math.round(activeArtwork.width)}%</span>
+                    <label htmlFor="artwork-height" className="font-semibold text-foreground">Height</label>
+                    <input
+                      id="artwork-height"
+                      type="range"
+                      min="6"
+                      max="80"
+                      value={activeArtwork.height}
+                      onChange={(event) => updateArtwork(activeSide, resizeArtworkTransform(activeArtwork, activeArtwork.width, Number(event.target.value)))}
+                      className="w-full accent-primary"
+                    />
+                    <span className="w-10 text-right tabular-nums">{Math.round(activeArtwork.height)}%</span>
                   </div>
                 </div>
 
