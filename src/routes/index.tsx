@@ -331,8 +331,8 @@ export default function App() {
   const [brandingTechnique, setBrandingTechnique] = useState("puff"); // 'blank' | 'screen' | 'puff' | 'embroidery'
   const [logoPlacement, setLogoPlacement] = useState("left-chest"); // 'left-chest' | 'center-chest' | 'full-back' | 'sleeve'
   const [customLogoText, setCustomLogoText] = useState("WORTHSTYLE CLIENT");
-  const [customLogoFile, setCustomLogoFile] = useState(null);
-  const [uploadedLogoUrl, setUploadedLogoUrl] = useState(null);
+  const [customLogoFile, setCustomLogoFile] = useState<File | null>(null);
+  const [uploadedLogoUrl, setUploadedLogoUrl] = useState<string | null>(null);
 
   // Add-ons
   const [addonNeckLabel, setAddonNeckLabel] = useState(true); // +18/pc
@@ -362,7 +362,9 @@ export default function App() {
     targetDate: "2026-12-15",
     specialNotes: "Require custom Pantone matching for Forest Green shade. Include certified OEKO-TEX hangtags."
   });
-  const [submittedRfq, setSubmittedRfq] = useState<PipelineQuote | null>(null);
+  const [submittedRfq, setSubmittedRfq] = useState<
+    (PipelineQuote & { details: NonNullable<PipelineQuote["details"]> }) | null
+  >(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Merchant Pipeline / Quotes DB
@@ -410,7 +412,7 @@ export default function App() {
   // Sync color options when selected product changes
   const handleSelectProduct = (prod: Product) => {
     setSelectedProduct(prod);
-    setGarmentColor(prod.colors[0]);
+    setGarmentColor(firstColor(prod));
   };
 
   // Keep Size Sum synchronized with total quantity
