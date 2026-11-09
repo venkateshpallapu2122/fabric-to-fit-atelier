@@ -1,7 +1,7 @@
 {
   "source": "code archive",
   "capabilities": [
-    { "capability": "application code and routes", "source": "single React TSX module", "outcome": "migrate to the home page", "status": "in_progress", "next_action": "port and verify the full portal" },
+    { "capability": "application code and routes", "source": "single React TSX module", "outcome": "migrate to the home page", "status": "verified", "next_action": "none" },
     { "capability": "schema", "source": "none detected", "outcome": "not applicable", "status": "verified", "next_action": "none" },
     { "capability": "application records", "source": "three embedded demo pipeline quotes; no database or record export detected", "outcome": "preserve demo quotes; no production data migration available", "status": "verified", "next_action": "request an export only if these represent real application records" },
     { "capability": "authentication and user identities", "source": "none detected", "outcome": "not present in source archive", "status": "verified", "next_action": "none" },
@@ -10,6 +10,6 @@
     { "capability": "external providers and secrets", "source": "none detected", "outcome": "not present in source archive", "status": "verified", "next_action": "none" },
     { "capability": "public endpoints, callbacks, webhooks, schedules", "source": "none detected", "outcome": "not present in source archive", "status": "verified", "next_action": "none" },
     { "capability": "cutover", "source": "standalone source archive with no production URL or integrations supplied", "outcome": "no external cutover actions identified", "status": "verified", "next_action": "none" },
-    { "capability": "verification", "source": "Lovable preview", "outcome": "pending end-to-end browser verification", "status": "pending", "next_action": "verify key portal flows in preview" }
+    { "capability": "verification", "source": "Lovable preview", "outcome": "catalog, quote generation, and in-session pipeline readback verified in preview", "status": "verified", "next_action": "none" }
   ]
 }
