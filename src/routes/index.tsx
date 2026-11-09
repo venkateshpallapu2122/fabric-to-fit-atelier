@@ -695,7 +695,7 @@ export default function App() {
           </span>
           <span className="hidden md:inline text-emerald-200/60">•</span>
           <span className="hidden md:inline">
-            Direct Mills: Hyderabad & Kamareddy, Telangana
+            Direct Mills: Hyderabad & Bengaluru, India
           </span>
         </div>
         <div className="flex items-center gap-4 text-[11px]">
@@ -722,7 +722,7 @@ export default function App() {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-serif tracking-tight text-2xl font-bold text-[#133926]">
-                  worthstyle
+                  WORTHSTYLE
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
                   B2B Portal
@@ -2152,7 +2152,7 @@ export default function App() {
               <div className="flex items-center justify-between border-b border-stone-200 pb-3">
                 <div>
                   <div className="font-bold text-stone-900 text-sm">WORTHSTYLE MERCHANDISING</div>
-                  <div className="text-[10px] text-stone-500">Hyderabad & Kamareddy Hubs, TS</div>
+                  <div className="text-[10px] text-stone-500">Hyderabad & Bengaluru Hubs, IN</div>
                 </div>
                 <div className="text-right">
                   <div className="text-emerald-800 font-bold">{submittedRfq.id}</div>
@@ -2254,7 +2254,7 @@ export default function App() {
               </li>
               <li className="flex items-start gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                <span>Kamareddy Organic Weaving & Dyeing Cluster</span>
+                <span>Telangana Organic Weaving & Dyeing Cluster</span>
               </li>
             </ul>
           </div>
@@ -2278,11 +2278,11 @@ export default function App() {
             <div className="space-y-2 text-[11px]">
               <div className="flex items-center gap-2">
                 <Mail className="w-3.5 h-3.5 text-emerald-400" />
-                <span>b2b@worthstyle.in</span>
+                <span>info@worthstyle.in</span>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                <span>+91 98490 12345 (Direct Desk)</span>
+                <span>+91 83677 84677 (Direct Desk)</span>
               </div>
               <div className="pt-2">
                 <span className="inline-block bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded text-[10px]">
